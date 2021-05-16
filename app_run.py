@@ -6,7 +6,7 @@
 
 # import configparser
 
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from linebot import (
     LineBotApi, WebhookHandler
 )
@@ -28,14 +28,17 @@ def print_hi(name):
     # Use a breakpoint in the code line below to debug your script.
     print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
 
+'''
 
+
+@app.route('/')
+@app.route('/index')
 def index():
-    return render_template('index.html', data=" Deploying a Flask App To Heroku");'''
+    return jsonify({'Hello': 'World!'})
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    # app.run(debug=True)
-    print("hello")
+    app.run()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
