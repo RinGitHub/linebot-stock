@@ -4,41 +4,51 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 
-# import configparser
+from flask import Flask, request, abort
 
-from flask import Flask, render_template, jsonify
 from linebot import (
     LineBotApi, WebhookHandler
 )
+from linebot.exceptions import (
+    InvalidSignatureError
+)
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage,
+)
 
 app = Flask(__name__)
-# config = configparser.ConfigParser()
-# config.read("config.ini")
 
-'''
-line_bot_api = LineBotApi(config['line_bot']['Channel_Access_Token'])
-handler = WebhookHandler(config['line_bot']['Channel_Secret'])
-client_id = config['imgur_api']['Client_ID']
-client_secret = config['imgur_api']['Client_Secret']
-album_id = config['imgur_api']['Album_ID']
-API_Get_Image = config['other_api']['API_Get_Image']
+line_bot_api = LineBotApi('YOUR_CHANNEL_ACCESS_TOKEN')
+handler = WebhookHandler('YOUR_CHANNEL_SECRET')
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+@app.route("/callback", methods=['POST'])
+def callback():
+    # get X-Line-Signature header value
+    signature = request.headers['X-Line-Signature']
 
-'''
+    # get request body as text
+    body = request.get_data(as_text=True)
+    app.logger.info("Request body: " + body)
+
+    # handle webhook body
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        print("Invalid signature. Please check your channel access token/channel secret.")
+        abort(400)
+
+    return 'OK'
 
 
-@app.route('/')
-@app.route('/index')
-def index():
-    return jsonify({'Hello': 'World!'})
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=event.message.text))
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run()
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
