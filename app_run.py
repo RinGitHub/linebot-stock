@@ -4,7 +4,7 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 
-'''import configparser
+# import configparser
 
 from flask import Flask, render_template
 from linebot import (
@@ -12,9 +12,10 @@ from linebot import (
 )
 
 app = Flask(__name__)
-config = configparser.ConfigParser()
-config.read("config.ini")
+# config = configparser.ConfigParser()
+# config.read("config.ini")
 
+'''
 line_bot_api = LineBotApi(config['line_bot']['Channel_Access_Token'])
 handler = WebhookHandler(config['line_bot']['Channel_Secret'])
 client_id = config['imgur_api']['Client_ID']
