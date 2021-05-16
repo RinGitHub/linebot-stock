@@ -1,10 +1,5 @@
-click==8.0.0
 Flask==2.0.0
-Flask-SQLAlchemy==2.5.1
-Flask-Migrate==3.0.0
 gunicorn==20.1.0
-itsdangerous==0.24
-Jinja2==3.0.0
-MarkupSafe==2.0.0
-Werkzeug==2.0.0
-psycopg2==2.8.6
+beautifulsoup4==4.9.1
+line-bot-sdk==1.19.0
+imgurpython==1.1.7
