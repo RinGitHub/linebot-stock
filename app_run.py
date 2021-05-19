@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import random
-import time
 from datetime import timedelta, datetime
 from pymongo import MongoClient
 
@@ -20,7 +18,7 @@ from imgurpython import ImgurClient
 
 from flask import Flask, request, abort
 from linebot import (
-    LineBotApi, WebhookParser
+    LineBotApi, WebhookParser, WebhookHandler
 )
 from linebot.exceptions import (
     InvalidSignatureError
@@ -29,113 +27,80 @@ from linebot.models import *
 
 app = Flask(__name__)
 
-channel_secret_8 = '77fdb87ee576fcbee74ebebb7c4d416b'
-channel_access_token_8 = 'kK3nS0J1mu0oDHuFs+W+CFjYLYhDmKOxK2tIaE4YdN7lw4lzhhEEuSqNUvjXimGjc+QW20XzcU+Xy8OID2CLN1AmpnkF6+wIgTN2DokyzpodhyYVMgAK/i2BGvxH+u+iS/hWBqeLIbqBGLzseGdY0QdB04t89/1O/w1cDnyilFU='
-line_bot_api_8 = LineBotApi(channel_access_token_8)
-parser_8 = WebhookParser(channel_secret_8)
+line_bot_api = LineBotApi(
+    'kK3nS0J1mu0oDHuFs+W+CFjYLYhDmKOxK2tIaE4YdN7lw4lzhhEEuSqNUvjXimGjc+QW20XzcU+Xy8OID2CLN1AmpnkF6'
+    '+wIgTN2DokyzpodhyYVMgAK/i2BGvxH+u+iS/hWBqeLIbqBGLzseGdY0QdB04t89/1O/w1cDnyilFU=')
+handler = WebhookHandler('77fdb87ee576fcbee74ebebb7c4d416b')
 
 
-# ===================================================
-#   stock bot
-# ===================================================
-@app.route("/callback_yangbot8", methods=['POST'])
-def callback_yangbot8():
+@app.route("/callback", methods=['POST'])
+def callback():
+    # get X-Line-Signature header value
     signature = request.headers['X-Line-Signature']
 
     # get request body as text
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
 
-    # parse webhook body
+    # handle webhook body
     try:
-        events = parser_8.parse(body, signature)
+        events = handler.handle(body, signature)
     except InvalidSignatureError:
+        print("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
 
-    # if event is MessageEvent and message is TextMessage, then echo text
     for event in events:
-        if not isinstance(event, MessageEvent):
-            continue
-        if not isinstance(event.message, TextMessage):
-            continue
+        if isinstance(event, MessageEvent):
+            text = event.message.text
+            if text.startswith('#'):
+                text = text[1:]
+                content = ''
 
-        text = event.message.text
-        # userId = event['source']['userId']
-        if text.lower() == 'me':
-            content = str(event.source.user_id)
+                stock_rt = twstock.realtime.get(text)
+                my_datetime = datetime.fromtimestamp(stock_rt['timestamp'] + 8 * 60 * 60)
+                my_time = my_datetime.strftime('%H:%M:%S')
 
-            line_bot_api_8.reply_message(
-                event.reply_token,
-                TextSendMessage(text=content)
-            )
-        elif text.lower() == 'profile':
-            profile = line_bot_api_8.get_profile(event.source.user_id)
-            my_status_message = profile.status_message
-            if not my_status_message:
-                my_status_message = '-'
-            line_bot_api_8.reply_message(
-                event.reply_token, [
-                    TextSendMessage(
-                        text='Display name: ' + profile.display_name
-                    ),
-                    TextSendMessage(
-                        text='picture url: ' + profile.picture_url
-                    ),
-                    TextSendMessage(
-                        text='status_message: ' + my_status_message
-                    ),
-                ]
-            )
+                content += '%s (%s) %s\n' % (
+                    stock_rt['info']['name'],
+                    stock_rt['info']['code'],
+                    my_time)
+                content += '現價: %s / 開盤: %s\n' % (
+                    stock_rt['realtime']['latest_trade_price'],
+                    stock_rt['realtime']['open'])
+                content += '最高: %s / 最低: %s\n' % (
+                    stock_rt['realtime']['high'],
+                    stock_rt['realtime']['low'])
+                content += '量: %s\n' % (stock_rt['realtime']['accumulate_trade_volume'])
 
-        elif text.startswith('#'):
-            text = text[1:]
-            content = ''
+                stock = twstock.Stock(text)  # twstock.Stock('2330')
+                content += '-----\n'
+                content += '最近五日價格: \n'
+                price5 = stock.price[-5:][::-1]
+                date5 = stock.date[-5:][::-1]
+                for i in range(len(price5)):
+                    # content += '[%s] %s\n' %(date5[i].strftime("%Y-%m-%d %H:%M:%S"), price5[i])
+                    content += '[%s] %s\n' % (date5[i].strftime("%Y-%m-%d"), price5[i])
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text=content)
+                )
 
-            stock_rt = twstock.realtime.get(text)
-            my_datetime = datetime.fromtimestamp(stock_rt['timestamp'] + 8 * 60 * 60)
-            my_time = my_datetime.strftime('%H:%M:%S')
+            elif text.startswith('/'):
+                text = text[1:]
+                fn = '%s.png' % text
+                stock = twstock.Stock(text)
+                my_data = {'close': stock.close, 'date': stock.date, 'open': stock.open}
+                df1 = pd.DataFrame.from_dict(my_data)
 
-            content += '%s (%s) %s\n' % (
-                stock_rt['info']['name'],
-                stock_rt['info']['code'],
-                my_time)
-            content += '現價: %s / 開盤: %s\n' % (
-                stock_rt['realtime']['latest_trade_price'],
-                stock_rt['realtime']['open'])
-            content += '最高: %s / 最低: %s\n' % (
-                stock_rt['realtime']['high'],
-                stock_rt['realtime']['low'])
-            content += '量: %s\n' % (stock_rt['realtime']['accumulate_trade_volume'])
-
-            stock = twstock.Stock(text)  # twstock.Stock('2330')
-            content += '-----\n'
-            content += '最近五日價格: \n'
-            price5 = stock.price[-5:][::-1]
-            date5 = stock.date[-5:][::-1]
-            for i in range(len(price5)):
-                # content += '[%s] %s\n' %(date5[i].strftime("%Y-%m-%d %H:%M:%S"), price5[i])
-                content += '[%s] %s\n' % (date5[i].strftime("%Y-%m-%d"), price5[i])
-            line_bot_api_8.reply_message(
-                event.reply_token,
-                TextSendMessage(text=content)
-            )
-
-        elif text.startswith('/'):
-            text = text[1:]
-            fn = '%s.png' % text
-            stock = twstock.Stock(text)
-            my_data = {'close': stock.close, 'date': stock.date, 'open': stock.open}
-            df1 = pd.DataFrame.from_dict(my_data)
-
-            df1.plot(x='date', y='close')
-            plt.title('[%s]' % stock.sid)
-            plt.savefig(fn)
-            plt.close()
+                df1.plot(x='date', y='close')
+                plt.title('[%s]' % stock.sid)
+                plt.savefig(fn)
+                plt.close()
 
             # -- upload
             # imgur with account: your.mail@gmail.com
-            client_id = 'your imgur client_id'
-            client_secret = 'your imgur client_secret'
+            client_id = '219e4677b4d2110'
+            client_secret = '69f161c63fe23108f9f77498f72dd3c50c7adedd'
 
             client = ImgurClient(client_id, client_secret)
             print("Uploading image... ")
@@ -148,18 +113,21 @@ def callback_yangbot8():
                 preview_image_url=url
             )
 
-            line_bot_api_8.reply_message(
+            line_bot_api.reply_message(
                 event.reply_token,
                 image_message
             )
 
-    return 'OK'
+        return 'OK'
 
 
-@app.route("/", methods=['GET'])
-def basic_url():
-    return 'OK'
-
+'''
+@handler.add(MessageEvent, message=TextMessage)
+def handle_message(event):
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=event.message.text))
+'''
 
 if __name__ == "__main__":
     app.run()
