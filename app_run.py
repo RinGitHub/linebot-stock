@@ -118,7 +118,7 @@ def callback():
                 image_message
             )
 
-        return 'OK'
+    return 'OK'
 
 
 '''
