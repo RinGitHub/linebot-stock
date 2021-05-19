@@ -30,7 +30,7 @@ app = Flask(__name__)
 line_bot_api = LineBotApi(
     'kK3nS0J1mu0oDHuFs+W+CFjYLYhDmKOxK2tIaE4YdN7lw4lzhhEEuSqNUvjXimGjc+QW20XzcU+Xy8OID2CLN1AmpnkF6'
     '+wIgTN2DokyzpodhyYVMgAK/i2BGvxH+u+iS/hWBqeLIbqBGLzseGdY0QdB04t89/1O/w1cDnyilFU=')
-handler = WebhookHandler('77fdb87ee576fcbee74ebebb7c4d416b')
+parser = WebhookParser('77fdb87ee576fcbee74ebebb7c4d416b')
 
 
 @app.route("/callback", methods=['POST'])
@@ -44,12 +44,12 @@ def callback():
 
     # handle webhook body
     try:
-        events = handler.parser(body, signature)
+        eve = parser.parser(body, signature)
     except InvalidSignatureError:
         print("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
 
-    for event in events:
+    for event in eve:
         if isinstance(event, MessageEvent):
             text = event.message.text
             if text.startswith('#'):
