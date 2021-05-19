@@ -44,7 +44,7 @@ def callback():
 
     # handle webhook body
     try:
-        eve = parser.parser(body, signature)
+        eve = parser.parse(body, signature)
     except InvalidSignatureError:
         print("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
