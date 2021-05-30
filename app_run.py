@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+
+import os
 from datetime import timedelta, datetime
-from pymongo import MongoClient
+# from pymongo import MongoClient
 
 # ref: http://twstock.readthedocs.io/zh_TW/latest/quickstart.html#id2
 import twstock
@@ -11,7 +13,6 @@ import pandas as pd
 
 import PIL.Image
 from selenium import webdriver
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.options import Options
 import time
 
@@ -109,8 +110,15 @@ def callback():
                 chrome_options.add_argument('--headless')
                 chrome_options.add_argument("--window-size=%s" % windows_size)
                 chrome_options.add_argument("--hide-scrollbars")
-                driver = webdriver.Chrome(executable_path=ChromeDriverManager().install(),
+                chrome_options.binary_location = os.environ.get("GOOGLE_CHROME_BIN")
+                chrome_options.add_argument("--disable-dev-shm-usage")
+                chrome_options.add_argument("--no-sandbox")
+                '''driver = webdriver.Chrome(executable_path=os.environ.get("CHROMEDRIVER_PATH"),
                                           chrome_options=chrome_options)
+                driver = webdriver.Chrome(executable_path=ChromeDriverManager().install(),
+                                          chrome_options=chrome_options)'''
+                driver = webdriver.Chrome(executable_path="chromedriver.exe",
+                                          options=chrome_options)
                 driver.maximize_window()
                 driver.get('https://tw.tradingview.com/symbols/TWSE-' + str(text))
                 time.sleep(2)
