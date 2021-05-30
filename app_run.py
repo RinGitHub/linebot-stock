@@ -120,8 +120,7 @@ def callback():
                 js = "scrollTo(0,%s)" % start_height
                 driver.execute_script(js)  # 執行js
                 time.sleep(0.5)
-                fn = "test.png"
-                driver.get_screenshot_as_file(fn)
+                driver.save_screenshot(fn)
 
                 img = PIL.Image.open(fp=fn)
                 left = ele.location['x']
@@ -151,6 +150,7 @@ def callback():
                 event.reply_token,
                 image_message
             )
+            driver.close()
 
     return 'OK'
 
