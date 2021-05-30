@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-
 from datetime import timedelta, datetime
 from pymongo import MongoClient
 
 # ref: http://twstock.readthedocs.io/zh_TW/latest/quickstart.html#id2
 import twstock
-
 import matplotlib
-
-matplotlib.use('Agg')  # ref: https://matplotlib.org/faq/howto_faq.html
-
 import matplotlib.pyplot as plt
 import pandas as pd
+
+import PIL.Image
+from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
+import time
 
 from imgurpython import ImgurClient
 
@@ -24,6 +25,8 @@ from linebot.exceptions import (
     InvalidSignatureError
 )
 from linebot.models import *
+
+matplotlib.use('Agg')  # ref: https://matplotlib.org/faq/howto_faq.html
 
 app = Flask(__name__)
 
@@ -52,7 +55,7 @@ def callback():
     for event in eve:
         if isinstance(event, MessageEvent):
             text = event.message.text
-            if text.startswith('#'):
+            if text.startswith('P'):
                 text = text[1:]
                 content = ''
 
@@ -85,9 +88,9 @@ def callback():
                     TextSendMessage(text=content)
                 )
 
-            elif text.startswith('/'):
+            elif text.startswith('K'):
                 text = text[1:]
-                fn = '%s.png' % text
+                fn = 'K_%s.png' % text
                 stock = twstock.Stock(text)
                 my_data = {'close': stock.close, 'date': stock.date, 'open': stock.open}
                 df1 = pd.DataFrame.from_dict(my_data)
@@ -96,6 +99,37 @@ def callback():
                 plt.title('[%s]' % stock.sid)
                 plt.savefig(fn)
                 plt.close()
+
+            elif text.startswith('F'):
+                text = text[1:]
+                fn = 'F_%s.png' % text
+
+                chrome_options = Options()
+                windows_size = "1920,750"
+                chrome_options.add_argument('--headless')
+                chrome_options.add_argument("--window-size=%s" % windows_size)
+                chrome_options.add_argument("--hide-scrollbars")
+                driver = webdriver.Chrome(executable_path=ChromeDriverManager().install(),
+                                          chrome_options=chrome_options)
+                driver.maximize_window()
+                driver.get('https://tw.tradingview.com/symbols/TWSE-' + str(text))
+                time.sleep(2)
+
+                ele = driver.find_element("xpath", '//div[@class="tv-feed-widget tv-feed-widget--fundamentals"]')
+                start_height = ele.location["y"] - 10
+                js = "scrollTo(0,%s)" % start_height
+                driver.execute_script(js)  # 執行js
+                time.sleep(0.5)
+                fn = "test.png"
+                driver.get_screenshot_as_file(fn)
+
+                img = PIL.Image.open(fp=fn)
+                left = ele.location['x']
+                # top = ele.location['y']
+                right = ele.location['x'] + ele.size['width']
+                # bottom = ele.location['y'] + ele.size['height']
+                img = img.crop((left, 58, right, 730))
+                img.save(fn)
 
             # -- upload
             # imgur with account: your.mail@gmail.com

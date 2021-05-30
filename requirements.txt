@@ -8,3 +8,5 @@ pandas~=1.2.4
 pymongo~=3.11.4
 matplotlib~=3.4.2
 lxml
+Pillow~=8.2.0
+selenium~=3.141.0
