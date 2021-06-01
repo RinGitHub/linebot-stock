@@ -160,7 +160,10 @@ def callback():
                 price5 = stock.price[-5:][::-1]
                 date5 = stock.date[-5:][::-1]
                 for i in range(len(price5)):
-                    content += '[%s] %s\n' % (date5[i].strftime("%Y-%m-%d"), price5[i])
+                    if i == len(price5) - 1:
+                        content += '[%s] %s' % (date5[i].strftime("%Y-%m-%d"), price5[i])
+                    else:
+                        content += '[%s] %s\n' % (date5[i].strftime("%Y-%m-%d"), price5[i])
 
                 line_bot_api.reply_message(
                     event.reply_token,
