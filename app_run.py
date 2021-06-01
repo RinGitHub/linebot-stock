@@ -57,6 +57,26 @@ def convert(lst):
     return res_dct
 
 
+def upload_image(fn):
+    # -- upload
+    # imgur with account: your.mail@gmail.com
+    client_id = '219e4677b4d2110'
+    client_secret = '69f161c63fe23108f9f77498f72dd3c50c7adedd'
+
+    client = ImgurClient(client_id, client_secret)
+    print("Uploading image... ")
+    image = client.upload_from_path(fn, anon=True)
+    print("Done")
+
+    url = image['link']
+    image_message = ImageSendMessage(
+        original_content_url=url,
+        preview_image_url=url
+    )
+
+    return image_message
+
+
 def crawl_for_stock_fundamental(stock_id):
     content = ''
     found_soup = soup('https://goodinfo.tw/StockInfo/StockDetail.asp?STOCK_ID=' + str(stock_id))
@@ -103,7 +123,6 @@ def callback():
     # get request body as text
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
-    fn = ""
 
     # handle webhook body
     try:
@@ -115,7 +134,6 @@ def callback():
     for event in eve:
         if isinstance(event, MessageEvent):
             text = event.message.text
-            reply_lst = []
             if text.startswith('P'):
                 text = text[1:]
                 content = ''
@@ -142,14 +160,12 @@ def callback():
                 price5 = stock.price[-5:][::-1]
                 date5 = stock.date[-5:][::-1]
                 for i in range(len(price5)):
-                    # content += '[%s] %s\n' %(date5[i].strftime("%Y-%m-%d %H:%M:%S"), price5[i])
                     content += '[%s] %s\n' % (date5[i].strftime("%Y-%m-%d"), price5[i])
 
-                reply_lst.append(TextSendMessage(text=content))
-                '''line_bot_api.reply_message(
+                line_bot_api.reply_message(
                     event.reply_token,
                     TextSendMessage(text=content)
-                )'''
+                )
 
             elif text.startswith('K'):
                 text = text[1:]
@@ -162,6 +178,13 @@ def callback():
                 plt.title('[%s]' % stock.sid)
                 plt.savefig(fn)
                 plt.close()
+
+                image_message = upload_image(fn)
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    image_message
+                )
+
 
             elif text.startswith('F'):
                 text = text[1:]
@@ -199,28 +222,13 @@ def callback():
                 img = img.crop((left, 58, right, 730))
                 img.save(fn)
 
-            # -- upload
-            # imgur with account: your.mail@gmail.com
-            client_id = '219e4677b4d2110'
-            client_secret = '69f161c63fe23108f9f77498f72dd3c50c7adedd'
+                image_message = upload_image(fn)
+                reply_lst.append(image_message)
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    reply_lst
+                )
 
-            client = ImgurClient(client_id, client_secret)
-            print("Uploading image... ")
-            image = client.upload_from_path(fn, anon=True)
-            print("Done")
-
-            url = image['link']
-            image_message = ImageSendMessage(
-                original_content_url=url,
-                preview_image_url=url
-            )
-
-            reply_lst.append(image_message)
-
-            line_bot_api.reply_message(
-                event.reply_token,
-                reply_lst
-            )
             driver.close()
 
     return 'OK'
