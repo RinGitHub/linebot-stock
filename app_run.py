@@ -2,8 +2,8 @@
 from __future__ import unicode_literals
 
 import os
-from datetime import timedelta, datetime
 # from pymongo import MongoClient
+import datetime
 
 # ref: http://twstock.readthedocs.io/zh_TW/latest/quickstart.html#id2
 import requests
