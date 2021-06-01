@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 
 import os
 # from pymongo import MongoClient
-import datetime
+from datetime import date
 
 # ref: http://twstock.readthedocs.io/zh_TW/latest/quickstart.html#id2
 import requests
@@ -76,7 +76,7 @@ def crawl_for_stock_fundamental(stock_id):
         info.append(str(i.get_text()).replace("\xa0", " "))
     info = convert(info)
 
-    today = datetime.date.today()
+    today = date.today()
 
     content += '《公司基本資訊》\n'
     content += '%s %s\n' % (
@@ -120,7 +120,7 @@ def callback():
                 content = ''
 
                 stock_rt = twstock.realtime.get(text)
-                my_datetime = datetime.fromtimestamp(stock_rt['timestamp'] + 8 * 60 * 60)
+                my_datetime = date.fromtimestamp(stock_rt['timestamp'] + 8 * 60 * 60)
                 my_time = my_datetime.strftime('%H:%M:%S')
 
                 content += '%s (%s) %s\n' % (
@@ -223,6 +223,7 @@ def callback():
             driver.close()
 
     return 'OK'
+
 
 if __name__ == "__main__":
     app.run()
