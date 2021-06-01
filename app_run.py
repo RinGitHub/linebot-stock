@@ -88,7 +88,7 @@ def crawl_for_stock_fundamental(stock_id):
         info['產業別'])
     content += '面值: %s\n' % (
         info['面值'])
-    content += '資本額: %s / 市值: %s\n' % (
+    content += '資本額: %s / 市值: %s' % (
         info['資本額'],
         info['市值'])
 
@@ -114,6 +114,7 @@ def callback():
     for event in eve:
         if isinstance(event, MessageEvent):
             text = event.message.text
+            reply_lst = []
             if text.startswith('P'):
                 text = text[1:]
                 content = ''
@@ -142,10 +143,12 @@ def callback():
                 for i in range(len(price5)):
                     # content += '[%s] %s\n' %(date5[i].strftime("%Y-%m-%d %H:%M:%S"), price5[i])
                     content += '[%s] %s\n' % (date5[i].strftime("%Y-%m-%d"), price5[i])
-                line_bot_api.reply_message(
+
+                reply_lst.append(TextSendMessage(text=content))
+                '''line_bot_api.reply_message(
                     event.reply_token,
                     TextSendMessage(text=content)
-                )
+                )'''
 
             elif text.startswith('K'):
                 text = text[1:]
@@ -164,11 +167,7 @@ def callback():
                 fn = 'F_%s.png' % text
 
                 content = crawl_for_stock_fundamental(text)
-
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(text=content)
-                )
+                reply_lst = [TextSendMessage(text=content)]
 
                 chrome_options = Options()
                 windows_size = "1920,750"
@@ -215,9 +214,11 @@ def callback():
                 preview_image_url=url
             )
 
+            reply_lst.append(image_message)
+
             line_bot_api.reply_message(
                 event.reply_token,
-                image_message
+                reply_lst
             )
             driver.close()
 
