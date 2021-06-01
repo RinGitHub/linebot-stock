@@ -6,12 +6,14 @@ from datetime import timedelta, datetime
 # from pymongo import MongoClient
 
 # ref: http://twstock.readthedocs.io/zh_TW/latest/quickstart.html#id2
+import requests
 import twstock
 import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 
 import PIL.Image
+from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 import time
@@ -35,6 +37,62 @@ line_bot_api = LineBotApi(
     'kK3nS0J1mu0oDHuFs+W+CFjYLYhDmKOxK2tIaE4YdN7lw4lzhhEEuSqNUvjXimGjc+QW20XzcU+Xy8OID2CLN1AmpnkF6'
     '+wIgTN2DokyzpodhyYVMgAK/i2BGvxH+u+iS/hWBqeLIbqBGLzseGdY0QdB04t89/1O/w1cDnyilFU=')
 parser = WebhookParser('77fdb87ee576fcbee74ebebb7c4d416b')
+
+
+def soup(url):
+    headers = {
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                      'Chrome/65.0.3325.181 Safari/537.36',
+    }
+    resp = requests.get(url, headers=headers)
+    resp.encoding = 'utf-8'
+    # 根據 HTTP header 的編碼解碼後的內容資料（ex. UTF-8）
+    raw_html = resp.text
+
+    return BeautifulSoup(raw_html, 'html.parser')
+
+
+def convert(lst):
+    res_dct = {lst[i]: lst[i + 1] for i in range(0, len(lst) - 1, 2)}
+    return res_dct
+
+
+def crawl_for_stock_fundamental(stock_id):
+    content = ''
+    found_soup = soup('https://goodinfo.tw/StockInfo/StockDetail.asp?STOCK_ID=' + str(stock_id))
+
+    # 股票代碼 + 公司名稱
+    company_name = found_soup.find("title").get_text().split()
+
+    # 公司資訊
+    basic_info_tables = found_soup.find_all("table", {"class": "solid_1_padding_4_4_tbl"})
+    for basic_info_table in basic_info_tables:
+        # print(basic_info_table)
+        if "產業別" in basic_info_table.get_text():
+            raw_info = basic_info_table.find_all('td')
+
+    info = []
+    for i in raw_info:
+        info.append(str(i.get_text()).replace("\xa0", " "))
+    info = convert(info)
+
+    today = datetime.date.today()
+
+    content += '《公司基本資訊》\n'
+    content += '%s %s\n' % (
+        company_name[0],
+        today)
+    content += '公司名稱: %s\n' % (
+        info['名稱'])
+    content += '產業別: %s\n' % (
+        info['產業別'])
+    content += '面值: %s\n' % (
+        info['面值'])
+    content += '資本額: %s / 市值: %s\n' % (
+        info['資本額'],
+        info['市值'])
+
+    return content
 
 
 @app.route("/callback", methods=['POST'])
@@ -105,6 +163,13 @@ def callback():
                 text = text[1:]
                 fn = 'F_%s.png' % text
 
+                content = crawl_for_stock_fundamental(text)
+
+                line_bot_api.reply_message(
+                    event.reply_token,
+                    TextSendMessage(text=content)
+                )
+
                 chrome_options = Options()
                 windows_size = "1920,750"
                 chrome_options.add_argument('--headless')
@@ -115,10 +180,6 @@ def callback():
                 chrome_options.add_argument("--no-sandbox")
                 driver = webdriver.Chrome(executable_path=os.environ.get("CHROMEDRIVER_PATH"),
                                           chrome_options=chrome_options)
-                '''driver = webdriver.Chrome(executable_path=ChromeDriverManager().install(),
-                                          chrome_options=chrome_options)
-                driver = webdriver.Chrome(executable_path="chromedriver.exe",
-                                          options=chrome_options)'''
                 driver.maximize_window()
                 driver.get('https://tw.tradingview.com/symbols/TWSE-' + str(text))
                 time.sleep(2)
@@ -161,15 +222,6 @@ def callback():
             driver.close()
 
     return 'OK'
-
-
-'''
-@handler.add(MessageEvent, message=TextMessage)
-def handle_message(event):
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=event.message.text))
-'''
 
 if __name__ == "__main__":
     app.run()
