@@ -85,14 +85,14 @@ def crawl_for_stock_fundamental(stock_id):
     company_name = found_soup.find("title").get_text().split()
 
     # 公司資訊
-    basic_info_tables = found_soup.find_all("table", {"class": "solid_1_padding_4_4_tbl"})
+    basic_info_tables = found_soup.find_all("table", {"class": "b1 p4_4 r10"})
     for basic_info_table in basic_info_tables:
         # print(basic_info_table)
         if "產業別" in basic_info_table.get_text():
             raw_info = basic_info_table.find_all('td')
 
     info = []
-    for i in raw_info:
+    for i in raw_info[1:]:
         info.append(str(i.get_text()).replace("\xa0", " "))
     info = convert(info)
 
