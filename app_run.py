@@ -93,38 +93,39 @@ def crawl_for_stock_fundamental(event, stock_id):
 
     # 公司資訊
     basic_info_tables = found_soup.find_all("table", {"class": "b1 p4_4 r10"})
+    if not basic_info_tables:
+        content = "非常抱歉，目前暫無此股號相關基本資訊！"
+        send_text_message(event, content)
+        return
+
     for basic_info_table in basic_info_tables:
         # print(basic_info_table)
         if "產業別" in basic_info_table.get_text():
             raw_info = basic_info_table.find_all('td')
 
-    if not raw_info:
-        content = "非常抱歉，目前暫無此股號相關資訊！"
-        send_text_message(event, content)
-    else:
-        info = []
-        for i in raw_info[1:]:
-            info.append(str(i.get_text()).replace("\xa0", " "))
-        info = convert(info)
+    info = []
+    for i in raw_info[1:]:
+        info.append(str(i.get_text()).replace("\xa0", " "))
+    info = convert(info)
 
-        today = date.today()
-    
-        # 將所需資訊及Title等放入List
-        content += '《公司基本資訊》\n'
-        content += '%s %s\n' % (
-            company_name[0],
-            today)
-        content += '公司名稱: %s\n' % (
-            info['名稱'])
-        content += '產業別: %s\n' % (
-            info['產業別'])
-        content += '面值: %s\n' % (
-            info['面值'])
-        content += '資本額: %s / 市值: %s' % (
-            info['資本額'],
-            info['市值'])
+    today = date.today()
 
-        return content
+    # 將所需資訊及Title等放入List
+    content += '《公司基本資訊》\n'
+    content += '%s %s\n' % (
+        company_name[0],
+        today)
+    content += '公司名稱: %s\n' % (
+        info['名稱'])
+    content += '產業別: %s\n' % (
+        info['產業別'])
+    content += '面值: %s\n' % (
+        info['面值'])
+    content += '資本額: %s / 市值: %s' % (
+        info['資本額'],
+        info['市值'])
+
+    return content
 
 
 def p_success(stock_rt, text):
