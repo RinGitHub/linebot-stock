@@ -97,32 +97,29 @@ def crawl_for_stock_fundamental(stock_id):
         if "產業別" in basic_info_table.get_text():
             raw_info = basic_info_table.find_all('td')
 
-    if not raw_info:
-        return ''
-    else:
-        info = []
-        for i in raw_info[1:]:
-            info.append(str(i.get_text()).replace("\xa0", " "))
-        info = convert(info)
+    info = []
+    for i in raw_info[1:]:
+        info.append(str(i.get_text()).replace("\xa0", " "))
+    info = convert(info)
 
-        today = date.today()
+    today = date.today()
 
-        # 將所需資訊及Title等放入List
-        content += '《公司基本資訊》\n'
-        content += '%s %s\n' % (
-            company_name[0],
-            today)
-        content += '公司名稱: %s\n' % (
-            info['名稱'])
-        content += '產業別: %s\n' % (
-            info['產業別'])
-        content += '面值: %s\n' % (
-            info['面值'])
-        content += '資本額: %s / 市值: %s' % (
-            info['資本額'],
-            info['市值'])
+    # 將所需資訊及Title等放入List
+    content += '《公司基本資訊》\n'
+    content += '%s %s\n' % (
+        company_name[0],
+        today)
+    content += '公司名稱: %s\n' % (
+        info['名稱'])
+    content += '產業別: %s\n' % (
+        info['產業別'])
+    content += '面值: %s\n' % (
+        info['面值'])
+    content += '資本額: %s / 市值: %s' % (
+        info['資本額'],
+        info['市值'])
 
-        return content
+    return content
 
 
 def p_success(stock_rt, text):
@@ -171,6 +168,58 @@ def k_success(text, stock, event):
         event.reply_token,
         image_message
     )
+
+
+def f_success(text, event):
+    fn = 'F_%s.png' % text
+
+    # 查詢公司基本資訊
+    content = crawl_for_stock_fundamental(text)
+    if not content:
+        content = "請輸入有效股號或再試一次！"
+        send_text_message(event, content)
+    else:
+        reply_lst = [TextSendMessage(text=content)]
+        # 爬取tradingview網站的基本面資訊並將頁面截圖
+        chrome_options = Options()
+        windows_size = "1920,750"
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument("--window-size=%s" % windows_size)
+        chrome_options.add_argument("--hide-scrollbars")
+        chrome_options.binary_location = os.environ.get("GOOGLE_CHROME_BIN")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--no-sandbox")
+        driver = webdriver.Chrome(executable_path=os.environ.get("CHROMEDRIVER_PATH"),
+                                  chrome_options=chrome_options)
+        driver.maximize_window()
+        driver.get('https://tw.tradingview.com/symbols/TWSE-' + str(text))
+        time.sleep(2)
+        driver.find_element_by_class_name("text-oST7Udg3").click()
+
+        ele = driver.find_element("xpath", '//div[@class="tv-feed-widget tv-feed-widget--fundamentals"]')
+        start_height = ele.location["y"] - 10
+        js = "scrollTo(0,%s)" % start_height
+        driver.execute_script(js)  # 執行js
+        time.sleep(0.5)
+        driver.save_screenshot(fn)
+
+        # 將基本面圖表從整頁截圖中切割
+        img = PIL.Image.open(fp=fn)
+        left = ele.location['x']
+        # top = ele.location['y']
+        right = ele.location['x'] + ele.size['width']
+        # bottom = ele.location['y'] + ele.size['height']
+        img = img.crop((left, 58, right, 730))
+        img.save(fn)
+
+        image_message = upload_image(fn)
+        reply_lst.append(image_message)
+        line_bot_api.reply_message(
+            event.reply_token,
+            reply_lst
+        )
+
+        driver.close()
 
 
 def send_text_message(event, content):
@@ -223,54 +272,12 @@ def callback():
             # 查詢公司基本資訊及基本面
             elif text.startswith('F'):
                 text = text[1:]
-                fn = 'F_%s.png' % text
-
-                # 查詢公司基本資訊
-                content = crawl_for_stock_fundamental(text)
-                if not content:
+                try:
+                    twstock.Stock(text)
+                    f_success(text, event)
+                except KeyError:
                     content = "請輸入有效股號或再試一次！"
                     send_text_message(event, content)
-                else:
-                    reply_lst = [TextSendMessage(text=content)]
-                    # 爬取tradingview網站的基本面資訊並將頁面截圖
-                    chrome_options = Options()
-                    windows_size = "1920,750"
-                    chrome_options.add_argument('--headless')
-                    chrome_options.add_argument("--window-size=%s" % windows_size)
-                    chrome_options.add_argument("--hide-scrollbars")
-                    chrome_options.binary_location = os.environ.get("GOOGLE_CHROME_BIN")
-                    chrome_options.add_argument("--disable-dev-shm-usage")
-                    chrome_options.add_argument("--no-sandbox")
-                    driver = webdriver.Chrome(executable_path=os.environ.get("CHROMEDRIVER_PATH"),
-                                              chrome_options=chrome_options)
-                    driver.maximize_window()
-                    driver.get('https://tw.tradingview.com/symbols/TWSE-' + str(text))
-                    time.sleep(2)
-
-                    ele = driver.find_element("xpath", '//div[@class="tv-feed-widget tv-feed-widget--fundamentals"]')
-                    start_height = ele.location["y"] - 10
-                    js = "scrollTo(0,%s)" % start_height
-                    driver.execute_script(js)  # 執行js
-                    time.sleep(0.5)
-                    driver.save_screenshot(fn)
-
-                    # 將基本面圖表從整頁截圖中切割
-                    img = PIL.Image.open(fp=fn)
-                    left = ele.location['x']
-                    # top = ele.location['y']
-                    right = ele.location['x'] + ele.size['width']
-                    # bottom = ele.location['y'] + ele.size['height']
-                    img = img.crop((left, 58, right, 730))
-                    img.save(fn)
-
-                    image_message = upload_image(fn)
-                    reply_lst.append(image_message)
-                    line_bot_api.reply_message(
-                        event.reply_token,
-                        reply_lst
-                    )
-
-            driver.close()
 
     return 'OK'
 
