@@ -16,6 +16,7 @@ import PIL.Image
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import NoSuchElementException
 import time
 
 from imgurpython import ImgurClient
@@ -83,7 +84,7 @@ def upload_image(fn):
 
 
 # 在Goodinfo網站爬取公司基本資訊
-def crawl_for_stock_fundamental(stock_id):
+def crawl_for_stock_fundamental(event, stock_id):
     content = ''
     found_soup = soup('https://goodinfo.tw/StockInfo/StockDetail.asp?STOCK_ID=' + str(stock_id))
 
@@ -97,29 +98,33 @@ def crawl_for_stock_fundamental(stock_id):
         if "產業別" in basic_info_table.get_text():
             raw_info = basic_info_table.find_all('td')
 
-    info = []
-    for i in raw_info[1:]:
-        info.append(str(i.get_text()).replace("\xa0", " "))
-    info = convert(info)
+    if not raw_info:
+        content = "非常抱歉，目前暫無此股號相關資訊！"
+        send_text_message(event, content)
+    else:
+        info = []
+        for i in raw_info[1:]:
+            info.append(str(i.get_text()).replace("\xa0", " "))
+        info = convert(info)
 
-    today = date.today()
+        today = date.today()
+    
+        # 將所需資訊及Title等放入List
+        content += '《公司基本資訊》\n'
+        content += '%s %s\n' % (
+            company_name[0],
+            today)
+        content += '公司名稱: %s\n' % (
+            info['名稱'])
+        content += '產業別: %s\n' % (
+            info['產業別'])
+        content += '面值: %s\n' % (
+            info['面值'])
+        content += '資本額: %s / 市值: %s' % (
+            info['資本額'],
+            info['市值'])
 
-    # 將所需資訊及Title等放入List
-    content += '《公司基本資訊》\n'
-    content += '%s %s\n' % (
-        company_name[0],
-        today)
-    content += '公司名稱: %s\n' % (
-        info['名稱'])
-    content += '產業別: %s\n' % (
-        info['產業別'])
-    content += '面值: %s\n' % (
-        info['面值'])
-    content += '資本額: %s / 市值: %s' % (
-        info['資本額'],
-        info['市值'])
-
-    return content
+        return content
 
 
 def p_success(stock_rt, text):
@@ -174,7 +179,7 @@ def f_success(text, event):
     fn = 'F_%s.png' % text
 
     # 查詢公司基本資訊
-    content = crawl_for_stock_fundamental(text)
+    content = crawl_for_stock_fundamental(event, text)
     if not content:
         content = "請輸入有效股號或再試一次！"
         send_text_message(event, content)
@@ -195,8 +200,13 @@ def f_success(text, event):
         driver.get('https://tw.tradingview.com/symbols/TWSE-' + str(text))
         time.sleep(2)
         driver.find_element_by_class_name("text-oST7Udg3").click()
+        try:
+            ele = driver.find_element("xpath", '//div[@class="tv-feed-widget tv-feed-widget--fundamentals"]')
+        except NoSuchElementException:
+            content = "非常抱歉，目前暫無此股號相關資訊！"
+            send_text_message(event, content)
+            exit(0)
 
-        ele = driver.find_element("xpath", '//div[@class="tv-feed-widget tv-feed-widget--fundamentals"]')
         start_height = ele.location["y"] - 10
         js = "scrollTo(0,%s)" % start_height
         driver.execute_script(js)  # 執行js
