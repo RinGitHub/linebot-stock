@@ -33,12 +33,15 @@ matplotlib.use('Agg')  # ref: https://matplotlib.org/faq/howto_faq.html
 
 app = Flask(__name__)
 
+# Channel access token
 line_bot_api = LineBotApi(
     'kK3nS0J1mu0oDHuFs+W+CFjYLYhDmKOxK2tIaE4YdN7lw4lzhhEEuSqNUvjXimGjc+QW20XzcU+Xy8OID2CLN1AmpnkF6'
     '+wIgTN2DokyzpodhyYVMgAK/i2BGvxH+u+iS/hWBqeLIbqBGLzseGdY0QdB04t89/1O/w1cDnyilFU=')
+# Channel secret
 parser = WebhookParser('77fdb87ee576fcbee74ebebb7c4d416b')
 
 
+# 用 Beautiful Soup 解析 Goodinfo HTML程式碼
 def soup(url):
     headers = {
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -52,11 +55,13 @@ def soup(url):
     return BeautifulSoup(raw_html, 'html.parser')
 
 
+# 把 List convert 成 dict
 def convert(lst):
     res_dct = {lst[i]: lst[i + 1] for i in range(0, len(lst) - 1, 2)}
     return res_dct
 
 
+# 上傳圖檔至imgur並將圖片網址打包成一個訊息
 def upload_image(fn):
     # -- upload
     # imgur with account: your.mail@gmail.com
@@ -77,6 +82,7 @@ def upload_image(fn):
     return image_message
 
 
+# 在Goodinfo網站爬取公司基本資訊
 def crawl_for_stock_fundamental(stock_id):
     content = ''
     found_soup = soup('https://goodinfo.tw/StockInfo/StockDetail.asp?STOCK_ID=' + str(stock_id))
@@ -91,28 +97,87 @@ def crawl_for_stock_fundamental(stock_id):
         if "產業別" in basic_info_table.get_text():
             raw_info = basic_info_table.find_all('td')
 
-    info = []
-    for i in raw_info[1:]:
-        info.append(str(i.get_text()).replace("\xa0", " "))
-    info = convert(info)
+    if not raw_info:
+        return ''
+    else:
+        info = []
+        for i in raw_info[1:]:
+            info.append(str(i.get_text()).replace("\xa0", " "))
+        info = convert(info)
 
-    today = date.today()
+        today = date.today()
 
-    content += '《公司基本資訊》\n'
-    content += '%s %s\n' % (
-        company_name[0],
-        today)
-    content += '公司名稱: %s\n' % (
-        info['名稱'])
-    content += '產業別: %s\n' % (
-        info['產業別'])
-    content += '面值: %s\n' % (
-        info['面值'])
-    content += '資本額: %s / 市值: %s' % (
-        info['資本額'],
-        info['市值'])
+        # 將所需資訊及Title等放入List
+        content += '《公司基本資訊》\n'
+        content += '%s %s\n' % (
+            company_name[0],
+            today)
+        content += '公司名稱: %s\n' % (
+            info['名稱'])
+        content += '產業別: %s\n' % (
+            info['產業別'])
+        content += '面值: %s\n' % (
+            info['面值'])
+        content += '資本額: %s / 市值: %s' % (
+            info['資本額'],
+            info['市值'])
+
+        return content
+
+
+def p_success(stock_rt, text):
+    content = ''
+    my_datetime = date.fromtimestamp(stock_rt['timestamp'] + 8 * 60 * 60)
+    my_time = my_datetime.strftime('%H:%M:%S')
+
+    content += '%s (%s) %s\n' % (
+        stock_rt['info']['name'],
+        stock_rt['info']['code'],
+        my_time)
+    content += '現價: %s / 開盤: %s\n' % (
+        stock_rt['realtime']['latest_trade_price'],
+        stock_rt['realtime']['open'])
+    content += '最高: %s / 最低: %s\n' % (
+        stock_rt['realtime']['high'],
+        stock_rt['realtime']['low'])
+    content += '量: %s\n' % (stock_rt['realtime']['accumulate_trade_volume'])
+
+    stock = twstock.Stock(text)  # twstock.Stock('2330')
+    content += '-----\n'
+    content += '最近五日價格: \n'
+    price5 = stock.price[-5:][::-1]
+    date5 = stock.date[-5:][::-1]
+    for i in range(len(price5)):
+        if i == len(price5) - 1:
+            content += '[%s] %s' % (date5[i].strftime("%Y-%m-%d"), price5[i])
+        else:
+            content += '[%s] %s\n' % (date5[i].strftime("%Y-%m-%d"), price5[i])
 
     return content
+
+
+def k_success(text, stock, event):
+    fn = 'K_%s.png' % text
+    my_data = {'close': stock.close, 'date': stock.date, 'open': stock.open}
+    df1 = pd.DataFrame.from_dict(my_data)
+
+    df1.plot(x='date', y='close')
+    plt.title('[%s]' % stock.sid)
+    plt.savefig(fn)
+    plt.close()
+
+    image_message = upload_image(fn)
+    line_bot_api.reply_message(
+        event.reply_token,
+        image_message
+    )
+
+
+def send_text_message(event, content):
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=content)
+    )
 
 
 @app.route("/callback", methods=['POST'])
@@ -134,103 +199,76 @@ def callback():
     for event in eve:
         if isinstance(event, MessageEvent):
             text = event.message.text
+            # 查詢即時股價
             if text.startswith('P'):
                 text = text[1:]
-                content = ''
+                try:
+                    stock_rt = twstock.realtime.get(text)
+                    content = p_success(stock_rt, text)
+                except KeyError:
+                    content = "請輸入有效股號或再試一次！"
 
-                stock_rt = twstock.realtime.get(text)
-                my_datetime = date.fromtimestamp(stock_rt['timestamp'] + 8 * 60 * 60)
-                my_time = my_datetime.strftime('%H:%M:%S')
+                send_text_message(event, content)
 
-                content += '%s (%s) %s\n' % (
-                    stock_rt['info']['name'],
-                    stock_rt['info']['code'],
-                    my_time)
-                content += '現價: %s / 開盤: %s\n' % (
-                    stock_rt['realtime']['latest_trade_price'],
-                    stock_rt['realtime']['open'])
-                content += '最高: %s / 最低: %s\n' % (
-                    stock_rt['realtime']['high'],
-                    stock_rt['realtime']['low'])
-                content += '量: %s\n' % (stock_rt['realtime']['accumulate_trade_volume'])
-
-                stock = twstock.Stock(text)  # twstock.Stock('2330')
-                content += '-----\n'
-                content += '最近五日價格: \n'
-                price5 = stock.price[-5:][::-1]
-                date5 = stock.date[-5:][::-1]
-                for i in range(len(price5)):
-                    if i == len(price5) - 1:
-                        content += '[%s] %s' % (date5[i].strftime("%Y-%m-%d"), price5[i])
-                    else:
-                        content += '[%s] %s\n' % (date5[i].strftime("%Y-%m-%d"), price5[i])
-
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    TextSendMessage(text=content)
-                )
-
+            # 查詢歷史股價圖表
             elif text.startswith('K'):
                 text = text[1:]
-                fn = 'K_%s.png' % text
-                stock = twstock.Stock(text)
-                my_data = {'close': stock.close, 'date': stock.date, 'open': stock.open}
-                df1 = pd.DataFrame.from_dict(my_data)
+                try:
+                    stock = twstock.Stock(text)
+                    k_success(text, stock, event)
+                except KeyError:
+                    content = "請輸入有效股號或再試一次！"
+                    send_text_message(event, content)
 
-                df1.plot(x='date', y='close')
-                plt.title('[%s]' % stock.sid)
-                plt.savefig(fn)
-                plt.close()
-
-                image_message = upload_image(fn)
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    image_message
-                )
-
-
+            # 查詢公司基本資訊及基本面
             elif text.startswith('F'):
                 text = text[1:]
                 fn = 'F_%s.png' % text
 
+                # 查詢公司基本資訊
                 content = crawl_for_stock_fundamental(text)
-                reply_lst = [TextSendMessage(text=content)]
+                if not content:
+                    content = "請輸入有效股號或再試一次！"
+                    send_text_message(event, content)
+                else:
+                    reply_lst = [TextSendMessage(text=content)]
+                    # 爬取tradingview網站的基本面資訊並將頁面截圖
+                    chrome_options = Options()
+                    windows_size = "1920,750"
+                    chrome_options.add_argument('--headless')
+                    chrome_options.add_argument("--window-size=%s" % windows_size)
+                    chrome_options.add_argument("--hide-scrollbars")
+                    chrome_options.binary_location = os.environ.get("GOOGLE_CHROME_BIN")
+                    chrome_options.add_argument("--disable-dev-shm-usage")
+                    chrome_options.add_argument("--no-sandbox")
+                    driver = webdriver.Chrome(executable_path=os.environ.get("CHROMEDRIVER_PATH"),
+                                              chrome_options=chrome_options)
+                    driver.maximize_window()
+                    driver.get('https://tw.tradingview.com/symbols/TWSE-' + str(text))
+                    time.sleep(2)
 
-                chrome_options = Options()
-                windows_size = "1920,750"
-                chrome_options.add_argument('--headless')
-                chrome_options.add_argument("--window-size=%s" % windows_size)
-                chrome_options.add_argument("--hide-scrollbars")
-                chrome_options.binary_location = os.environ.get("GOOGLE_CHROME_BIN")
-                chrome_options.add_argument("--disable-dev-shm-usage")
-                chrome_options.add_argument("--no-sandbox")
-                driver = webdriver.Chrome(executable_path=os.environ.get("CHROMEDRIVER_PATH"),
-                                          chrome_options=chrome_options)
-                driver.maximize_window()
-                driver.get('https://tw.tradingview.com/symbols/TWSE-' + str(text))
-                time.sleep(2)
+                    ele = driver.find_element("xpath", '//div[@class="tv-feed-widget tv-feed-widget--fundamentals"]')
+                    start_height = ele.location["y"] - 10
+                    js = "scrollTo(0,%s)" % start_height
+                    driver.execute_script(js)  # 執行js
+                    time.sleep(0.5)
+                    driver.save_screenshot(fn)
 
-                ele = driver.find_element("xpath", '//div[@class="tv-feed-widget tv-feed-widget--fundamentals"]')
-                start_height = ele.location["y"] - 10
-                js = "scrollTo(0,%s)" % start_height
-                driver.execute_script(js)  # 執行js
-                time.sleep(0.5)
-                driver.save_screenshot(fn)
+                    # 將基本面圖表從整頁截圖中切割
+                    img = PIL.Image.open(fp=fn)
+                    left = ele.location['x']
+                    # top = ele.location['y']
+                    right = ele.location['x'] + ele.size['width']
+                    # bottom = ele.location['y'] + ele.size['height']
+                    img = img.crop((left, 58, right, 730))
+                    img.save(fn)
 
-                img = PIL.Image.open(fp=fn)
-                left = ele.location['x']
-                # top = ele.location['y']
-                right = ele.location['x'] + ele.size['width']
-                # bottom = ele.location['y'] + ele.size['height']
-                img = img.crop((left, 58, right, 730))
-                img.save(fn)
-
-                image_message = upload_image(fn)
-                reply_lst.append(image_message)
-                line_bot_api.reply_message(
-                    event.reply_token,
-                    reply_lst
-                )
+                    image_message = upload_image(fn)
+                    reply_lst.append(image_message)
+                    line_bot_api.reply_message(
+                        event.reply_token,
+                        reply_lst
+                    )
 
             driver.close()
 
