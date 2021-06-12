@@ -332,6 +332,10 @@ def callback():
                 text = text[1:]
                 content = d_success(text)
                 send_text_message(event, content)
+            # 輸入無效指令的回應
+            elif text != "幫助" and "help" and "Help" and "指令" and "教學":
+                content = "請輸入有效指令或輸入\"幫助\"來查看所有功能。"
+                send_text_message(event, content)
 
     return 'OK'
 
