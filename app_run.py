@@ -128,6 +128,14 @@ def crawl_for_stock_fundamental(event, stock_id):
     return content
 
 
+# 依殖利率>價格排序
+def DY_sort(stock):
+    stock = stock.split()
+    DY = float(stock[3][:-1])
+    price = 1 / float(stock[2])
+    return (DY, price)
+
+
 def p_success(stock_rt, text):
     content = ''
     my_datetime = date.fromtimestamp(stock_rt['timestamp'] + 8 * 60 * 60)
@@ -233,6 +241,36 @@ def f_success(text, event):
         driver.close()
 
 
+# 爬殖利率
+def d_success(text):
+    content = ''
+    text = text[1:].split()
+    budget = float(text[0]) / 1000
+    desire_DY = float(text[1])
+    url = 'https://stock.wespai.com/rate110'
+    soup_found = soup(url)
+    target = soup_found.find("table", "display")
+    trs = target.tbody.find_all("tr")
+    DY_lst = []
+
+    for tr in trs:
+        tds = tr.find_all("td")
+        numbers = tds[0].text
+        names = tds[1].text
+        prices = tds[6].text
+        DY = tds[8].text
+        if budget >= float(prices) and desire_DY <= float(DY[:-1]):
+            DY_lst.append(f"{numbers} {names} {prices} {DY}")
+    DY_sorted = sorted(DY_lst, reverse=True, key=DY_sort)
+    if len(DY_sorted) >= 5:
+        content = "\n".join(DY_sorted[:5])
+    elif 5 > len(DY_sorted) >= 1:
+        content = "\n".join(DY_sorted)
+    elif not DY_sorted:
+        content = "沒有合適的標的"
+    return content
+
+
 def send_text_message(event, content):
     line_bot_api.reply_message(
         event.reply_token,
@@ -289,6 +327,11 @@ def callback():
                 except KeyError:
                     content = "請輸入有效股號或再試一次！"
                     send_text_message(event, content)
+            # 查詢殖利率推薦標的
+            elif text.startswith('D'):
+                text = text[1:]
+                content = d_success(text)
+                send_text_message(event, content)
 
     return 'OK'
 
