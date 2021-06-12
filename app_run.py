@@ -133,7 +133,7 @@ def DY_sort(stock):
     stock = stock.split()
     DY = float(stock[3][:-1])
     price = 1 / float(stock[2])
-    return (DY, price)
+    return DY, price
 
 
 def p_success(stock_rt, text):
@@ -244,7 +244,7 @@ def f_success(text, event):
 # 爬殖利率
 def d_success(text):
     content = ''
-    text = text[1:].split()
+    text = text.split()
     budget = float(text[0]) / 1000
     desire_DY = float(text[1])
     url = 'https://stock.wespai.com/rate110'
@@ -331,6 +331,7 @@ def callback():
             elif text.startswith('D'):
                 text = text[1:]
                 content = d_success(text)
+                print(content)
                 send_text_message(event, content)
 
     return 'OK'
