@@ -333,7 +333,7 @@ def callback():
                 content = d_success(text)
                 send_text_message(event, content)
             # 輸入無效指令的回應
-            elif text != "幫助":
+            else:
                 content = "請輸入有效指令或輸入\"幫助\"來查看所有功能。"
                 send_text_message(event, content)
 
