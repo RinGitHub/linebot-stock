@@ -331,7 +331,6 @@ def callback():
             elif text.startswith('D'):
                 text = text[1:]
                 content = d_success(text)
-                print(content)
                 send_text_message(event, content)
 
     return 'OK'
