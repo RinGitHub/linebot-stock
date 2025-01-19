@@ -4,7 +4,6 @@
 
 1. 若首字母為P，表示目前使用者想查詢即時股價，在P這個區塊的程式碼中，首先截取P後方的股號存入變數Text，再利用twstock中realtime的即時查股API取得即時股價，為避免主程式過於龐大，用p_success這個function來包查詢即時股價的細部功能，並將return設為回傳訊息內容；
 若使用者輸入的是無效股號，則會判定為KeyError，將回傳訊息設為提醒使用者須重新輸入，最後再將content及本次接收訊息的event傳入send_text_message這個function完成訊息傳送。
-
 p_success及send_text_message的作用：
 p_success的目的是將從twstock取得該股號的即時股價整理並格式化成所要的格式再把這些文字包在content中回傳。
 send_text_message的作用就是在傳輸文字，包含三個屬性：token、訊息的形式及訊息中的文字，由於傳送文字訊息的功能會被多次使用，所以也將它包成funtion。
